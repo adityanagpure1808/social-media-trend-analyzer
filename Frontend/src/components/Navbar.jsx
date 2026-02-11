@@ -1,29 +1,3 @@
-// import { signOut } from "firebase/auth";
-// import { auth } from "../config/firebase";
-// import { useNavigate } from "react-router-dom";
-
-// export default function Navbar() {
-//   const navigate = useNavigate();
-
-//   const handleLogout = async () => {
-//     await signOut(auth);
-//     navigate("/login");
-//   };
-
-//   return (
-//     <nav className="bg-white shadow-md px-6 py-4 flex justify-between items-center">
-//       <h1 className="text-xl font-bold text-indigo-600">Trend Analyzer</h1>
-
-//       <button
-//         onClick={handleLogout}
-//         className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
-//       >
-//         Logout
-//       </button>
-//     </nav>
-//   );
-// }
-
 
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebase";

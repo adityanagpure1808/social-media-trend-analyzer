@@ -1,33 +1,4 @@
-// import { useState } from "react";
 
-// export default function MessageInput({ onSend, disabled }) {
-//   const [text, setText] = useState("");
-
-//   const send = () => {
-//     if (!text.trim()) return;
-//     onSend(text);
-//     setText("");
-//   };
-
-//   return (
-//     <div className="flex p-3 border-t">
-//       <input
-//         value={text}
-//         onChange={(e) => setText(e.target.value)}
-//         disabled={disabled}
-//         className="flex-1 border rounded px-3 py-2"
-//         placeholder="Ask about this report..."
-//       />
-//       <button
-//         onClick={send}
-//         disabled={disabled}
-//         className="ml-2 bg-blue-600 text-white px-4 py-2 rounded"
-//       >
-//         Send
-//       </button>
-//     </div>
-//   );
-// }
 import { useState } from "react";
 
 export default function MessageInput({ onSend, loading = false }) {

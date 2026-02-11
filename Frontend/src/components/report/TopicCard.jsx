@@ -1,46 +1,5 @@
 
 
-
-// export default function TopicCard({ topic }) {
-//   const hashtags = Array.isArray(topic.hashtags)
-//     ? topic.hashtags
-//     : [];
-
-//   return (
-//     <div className="bg-white rounded-xl shadow p-6 border hover:shadow-md transition">
-//       <h2 className="text-lg font-semibold mb-2">
-//         {topic.name || "Unknown Topic"}
-//       </h2>
-
-//       <p className="text-gray-600 text-sm mb-4">
-//         {topic.description || "No description available."}
-//       </p>
-
-//       {hashtags.length > 0 && (
-//         <div className="flex flex-wrap gap-2 mb-4">
-//           {hashtags.map((tag, i) => (
-//             <span
-//               key={i}
-//               className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded"
-//             >
-//               {tag}
-//             </span>
-//           ))}
-//         </div>
-//       )}
-
-//       <p className="text-sm font-medium">
-//         Popularity:{" "}
-//         <span className="text-indigo-600">
-//           {topic.popularity ?? "N/A"}
-//         </span>
-//       </p>
-//     </div>
-//   );
-// }
-
-
-
 export default function TopicCard({ topic }) {
   const hashtags = Array.isArray(topic?.hashtags)
     ? topic.hashtags

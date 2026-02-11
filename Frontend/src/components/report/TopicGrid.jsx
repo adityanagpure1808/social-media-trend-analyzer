@@ -1,14 +1,3 @@
-// import TopicCard from "./TopicCard";
-
-// export default function TopicGrid({ topics }) {
-//   return (
-//     <div className="max-w-6xl mx-auto px-6 py-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-//       {topics.map((topic, index) => (
-//         <TopicCard key={index} topic={topic} />
-//       ))}
-//     </div>
-//   );
-// }
 
 
 

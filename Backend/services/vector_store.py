@@ -1,13 +1,3 @@
-# def load_vector_store():
-#     global vector_store
-
-#     vector_store = Chroma(
-#         persist_directory="vector_store",
-#         embedding_function=embeddings
-#     )
-
-#     print("🔥 VECTOR STORE LOADED")
-#     print("📦 VECTOR COUNT:", vector_store._collection.count())
 
 
 
