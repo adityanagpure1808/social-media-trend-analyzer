@@ -43,11 +43,11 @@ python-dotenv
 pydantic
 requests
 httpx
+tqdm
 
 chromadb
-
-langchain
-langchain-openai
-openai
+sentence-transformers
+numpy
+scikit-learn
 
 tavily-python

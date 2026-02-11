@@ -127,29 +127,44 @@
 
 
 
+
+
+
+
+
 import os
 from chromadb import Client as ChromaClient
 from chromadb.config import Settings
-from langchain_openai import OpenAIEmbeddings
+from sentence_transformers import SentenceTransformer
 
-# =============================
-# OPENAI EMBEDDINGS (CLOUD)
-# =============================
-def get_embeddings():
-    # lightweight — no RAM usage
-    return OpenAIEmbeddings(model="text-embedding-3-small")
+# =====================================================
+# LAZY MODEL LOADER (IMPORTANT FOR RENDER)
+# =====================================================
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+_model = None
 
 
-# =============================
+def get_model():
+    global _model
+    if _model is None:
+        print("🔄 Loading embedding model (first use only)...")
+        _model = SentenceTransformer(MODEL_NAME)
+        print("✅ Embedding model loaded")
+    return _model
+
+
+# =====================================================
 # CHROMA VECTOR DB
-# =============================
-chroma = ChromaClient(Settings(persist_directory="./chroma", anonymized_telemetry=False))
+# =====================================================
+VECTOR_DIR = "./chroma"
+
+chroma = ChromaClient(Settings(persist_directory=VECTOR_DIR, anonymized_telemetry=False))
 collection = chroma.get_or_create_collection("reports")
 
 
-# =============================
+# =====================================================
 # TEXT CHUNKING
-# =============================
+# =====================================================
 def chunk_text(text: str, size: int = 800, overlap: int = 120):
     chunks = []
     start = 0
@@ -166,25 +181,26 @@ def chunk_text(text: str, size: int = 800, overlap: int = 120):
     return chunks
 
 
-# =============================
+# =====================================================
 # STORE REPORT EMBEDDINGS
-# =============================
+# =====================================================
 def store_report_embeddings(report_id: str, content: str, metadata: dict):
-    print("🚨 ABOUT TO STORE EMBEDDINGS FOR:", report_id)
 
+    print("🧠 Attempting embeddings for:", report_id)
+
+    model = get_model()
     chunks = chunk_text(content)
+
     print("🧩 Chunks:", len(chunks))
 
     if not chunks:
         raise RuntimeError("No chunks generated — cannot embed")
 
-    embeddings_model = get_embeddings()
     success_count = 0
 
     for i, chunk in enumerate(chunks):
         try:
-            # OPENAI EMBEDDING
-            embedding = embeddings_model.embed_query(chunk)
+            embedding = model.encode(chunk).tolist()
 
             collection.add(
                 documents=[chunk],
@@ -201,19 +217,18 @@ def store_report_embeddings(report_id: str, content: str, metadata: dict):
 
         except Exception as e:
             print("❌ EMBEDDINGS FAILED AT CHUNK", i, ":", e)
-            raise RuntimeError(f"Embedding failed at chunk {i}") from e
 
     print(f"🧠 EMBEDDINGS SUCCESS — stored {success_count}/{len(chunks)} chunks")
 
 
-# =============================
+# =====================================================
 # SEMANTIC SEARCH
-# =============================
+# =====================================================
 def semantic_search(query: str, report_id: str, k: int = 5):
-    try:
-        embeddings_model = get_embeddings()
-        query_embedding = embeddings_model.embed_query(query)
 
+    try:
+        model = get_model()
+        query_embedding = model.encode(query).tolist()
     except Exception as e:
         print("❌ Query embedding failed:", e)
         return {"documents": [], "metadatas": []}
@@ -241,11 +256,11 @@ def semantic_search(query: str, report_id: str, k: int = 5):
     }
 
 
-# =============================
+# =====================================================
 # VECTOR HEALTH DEBUG
-# =============================
+# =====================================================
 def vector_health():
     return {
         "vector_count": collection.count(),
-        "provider": "openai_embeddings"
+        "provider": "local_minilm_lazy"
     }
