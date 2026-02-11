@@ -24,27 +24,52 @@
 #     )
 
 #     return client.get_or_create_collection(name=COLLECTION_NAME)
-import os
+##above one i9s working
 
-VECTOR_DIR = "vector_store"
-COLLECTION_NAME = "reports"
 
+
+
+
+
+# import os
+
+# VECTOR_DIR = "vector_store"
+# COLLECTION_NAME = "reports"
+
+
+# def get_vector_collection():
+#     """
+#     Lazy-load Chroma only when actually needed
+#     Prevents Render OOM at startup
+#     """
+#     import chromadb
+#     from chromadb.config import Settings
+
+#     os.makedirs(VECTOR_DIR, exist_ok=True)
+
+#     client = chromadb.Client(
+#         Settings(
+#             persist_directory=VECTOR_DIR,
+#             anonymized_telemetry=False,
+#         )
+#     )
+
+#     return client.get_or_create_collection(name=COLLECTION_NAME)
+
+
+
+
+
+
+
+# vectordb.py
+# Bridge file → keeps compatibility with old imports
+
+from services.embedding_service import collection
 
 def get_vector_collection():
     """
-    Lazy-load Chroma only when actually needed
-    Prevents Render OOM at startup
+    Return SAME collection used by embedding_service
+    Prevents dual database issue
     """
-    import chromadb
-    from chromadb.config import Settings
-
-    os.makedirs(VECTOR_DIR, exist_ok=True)
-
-    client = chromadb.Client(
-        Settings(
-            persist_directory=VECTOR_DIR,
-            anonymized_telemetry=False,
-        )
-    )
-
-    return client.get_or_create_collection(name=COLLECTION_NAME)
+    return collection
