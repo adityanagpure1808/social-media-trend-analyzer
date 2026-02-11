@@ -947,21 +947,21 @@ from routes.export import router as export_router
 from database.db import get_db
 
 
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://social-media-trend-analyzer.vercel.app",
-]
+# ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "http://localhost:5174",
+#     "https://social-media-trend-analyzer.vercel.app",
+# ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=ALLOWED_ORIGINS,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
-app.include_router(export_router)
+# app.include_router(export_router)
 # =========================
 # APP SETUP
 # =========================
@@ -971,15 +971,15 @@ app = FastAPI(title="Social Media Trend Analyzer API")
 # =========================
 # CORS
 # =========================
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# app.include_router(export_router)
+app.include_router(export_router)
 
 
 # =========================
