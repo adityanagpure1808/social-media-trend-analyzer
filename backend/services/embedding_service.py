@@ -136,6 +136,7 @@ import os
 from chromadb import Client as ChromaClient
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
+collection = client.get_or_create_collection(name="reports")
 
 # =====================================================
 # LAZY MODEL LOADER (IMPORTANT FOR RENDER)
