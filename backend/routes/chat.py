@@ -101,7 +101,7 @@
 from fastapi import APIRouter
 from models.chat import ChatRequest
 from services.chat_service import save_chat_message, get_chat_history
-from services.rag_service import answer_question_about_report
+
 
 
 router = APIRouter()
@@ -109,6 +109,7 @@ router = APIRouter()
 
 @router.post("/api/reports/chat")
 def chat_with_report(payload: ChatRequest):
+    from services.rag_service import answer_question_about_report
     try:
         # ask hybrid RAG
         answer, documents, source = answer_question_about_report(
