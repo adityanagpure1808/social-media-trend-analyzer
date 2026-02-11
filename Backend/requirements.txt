@@ -1,0 +1,16 @@
+# fastapi
+# uvicorn
+# google-generativeai
+# python-dotenv
+
+fastapi
+uvicorn
+python-dotenv
+chromadb
+tqdm
+pydantic
+requests
+google-generativeai
+langchain
+langchain-google-genai
+tavily-python
