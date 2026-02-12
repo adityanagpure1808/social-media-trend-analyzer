@@ -491,11 +491,24 @@ app = FastAPI(title="Social Media Trend Analyzer API")
 # =====================================================
 # CORS
 # =====================================================
-FRONTEND_URL = os.getenv("FRONTEND_URL", "*")
+# FRONTEND_URL = os.getenv("FRONTEND_URL", "*")
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=[FRONTEND_URL] if FRONTEND_URL != "*" else ["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL] if FRONTEND_URL != "*" else ["*"],
+    allow_origins=[
+        "https://social-media-trend-analyzer.vercel.app",
+    ] if FRONTEND_URL else ["*"],
+
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
