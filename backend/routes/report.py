@@ -42,3 +42,25 @@ def get_report_status(report_id: str):
         return {"status": "not_found"}
 
     return report
+
+
+@router.get("/{report_id}")
+def get_full_report(report_id: str):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, platform, title, summary, trending_topics,
+               sentiment_analysis, raw_report, status, progress,
+               created_at, updated_at
+        FROM reports
+        WHERE id = %s
+    """, (report_id,))
+
+    report = cursor.fetchone()
+    conn.close()
+
+    if not report:
+        return {"error": "Report not found"}
+
+    return report
