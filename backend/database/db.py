@@ -1,45 +1,85 @@
+# # import sqlite3
+# # import os
+
+# # DB_PATH = os.getenv("DB_PATH", "database.db")
+
+# # def get_db():
+# #     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+# #     conn.row_factory = sqlite3.Row
+# #     return conn
+
+
+
 # import sqlite3
 # import os
+# from pathlib import Path
 
-# DB_PATH = os.getenv("DB_PATH", "database.db")
+# # =====================================================
+# # PERSISTENT STORAGE (Render Disk)
+# # =====================================================
+# # Render provides persistent disk at /data
+# DATA_DIR = os.getenv("RENDER_DISK_PATH", "/data")
 
+# Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
+
+# DB_PATH = os.path.join(DATA_DIR, "database.db")
+
+
+# # =====================================================
+# # CONNECTION FACTORY
+# # =====================================================
 # def get_db():
-#     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+#     conn = sqlite3.connect(
+#         DB_PATH,
+#         check_same_thread=False,
+#         timeout=30,  # prevents "database is locked"
+#     )
+
 #     conn.row_factory = sqlite3.Row
+
+#     # WAL MODE = allows reads during writes (VERY IMPORTANT)
+#     conn.execute("PRAGMA journal_mode=WAL;")
+#     conn.execute("PRAGMA synchronous=NORMAL;")
+#     conn.execute("PRAGMA foreign_keys=ON;")
+
 #     return conn
 
 
 
-import sqlite3
+
+
 import os
-from pathlib import Path
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-# =====================================================
-# PERSISTENT STORAGE (Render Disk)
-# =====================================================
-# Render provides persistent disk at /data
-DATA_DIR = os.getenv("RENDER_DISK_PATH", "/data")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
+_conn = None
 
-DB_PATH = os.path.join(DATA_DIR, "database.db")
-
-
-# =====================================================
-# CONNECTION FACTORY
-# =====================================================
 def get_db():
-    conn = sqlite3.connect(
-        DB_PATH,
-        check_same_thread=False,
-        timeout=30,  # prevents "database is locked"
-    )
+    """
+    Returns reusable Supabase Postgres connection.
+    Automatically reconnects if Render sleeps.
+    """
+    global _conn
 
-    conn.row_factory = sqlite3.Row
+    if DATABASE_URL is None:
+        raise RuntimeError("DATABASE_URL not set in environment variables")
 
-    # WAL MODE = allows reads during writes (VERY IMPORTANT)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    conn.execute("PRAGMA foreign_keys=ON;")
+    try:
+        if _conn is None or _conn.closed != 0:
+            _conn = psycopg2.connect(
+                DATABASE_URL,
+                cursor_factory=RealDictCursor,
+                sslmode="require"
+            )
+        return _conn
 
-    return conn
+    except Exception as e:
+        print("Reconnecting to database:", e)
+        _conn = psycopg2.connect(
+            DATABASE_URL,
+            cursor_factory=RealDictCursor,
+            sslmode="require"
+        )
+        return _conn
