@@ -167,9 +167,53 @@
 
 
 
+# import os
+# import psycopg2
+# from psycopg2.pool import SimpleConnectionPool
+# from psycopg2.extras import RealDictCursor
+
+# DATABASE_URL = os.getenv("DATABASE_URL")
+
+# if not DATABASE_URL:
+#     raise RuntimeError("DATABASE_URL not set")
+
+# # ---- IMPORTANT ----
+# # Supabase pooler needs these params explicitly
+# POOL_KWARGS = {
+#     "sslmode": "require",
+#     "connect_timeout": 10,
+#     "application_name": "trend-analyzer",
+# }
+
+# pool = SimpleConnectionPool(
+#     minconn=1,
+#     maxconn=5,
+#     dsn=DATABASE_URL,
+#     **POOL_KWARGS
+# )
+
+
+# def get_db():
+#     conn = pool.getconn()
+
+#     # ensures dict rows
+#     conn.autocommit = True
+#     cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+#     return conn, cursor
+
+
+# def release_db(conn):
+#     if conn:
+#         pool.putconn(conn)
+
+
+
+
+
+
 import os
 import psycopg2
-from psycopg2.pool import SimpleConnectionPool
 from psycopg2.extras import RealDictCursor
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -177,32 +221,15 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not set")
 
-# ---- IMPORTANT ----
-# Supabase pooler needs these params explicitly
-POOL_KWARGS = {
-    "sslmode": "require",
-    "connect_timeout": 10,
-    "application_name": "trend-analyzer",
-}
-
-pool = SimpleConnectionPool(
-    minconn=1,
-    maxconn=5,
-    dsn=DATABASE_URL,
-    **POOL_KWARGS
-)
-
 
 def get_db():
-    conn = pool.getconn()
-
-    # ensures dict rows
-    conn.autocommit = True
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-    return conn, cursor
-
-
-def release_db(conn):
-    if conn:
-        pool.putconn(conn)
+    """
+    Create a fresh connection per request.
+    REQUIRED for Supabase transaction pooler compatibility.
+    """
+    conn = psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor,
+        sslmode="require"
+    )
+    return conn
