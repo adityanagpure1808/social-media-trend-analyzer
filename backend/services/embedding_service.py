@@ -272,6 +272,126 @@
 
 
 
+# from chromadb import Client as ChromaClient
+# from chromadb.config import Settings
+# from chromadb.utils import embedding_functions
+
+# # =====================================================
+# # IN-MEMORY VECTOR DB (Render free tier safe)
+# # =====================================================
+# _client = None
+# _collection = None
+
+# # Default lightweight ONNX embedding model (~50MB)
+# embedding_function = embedding_functions.DefaultEmbeddingFunction()
+
+
+# # =====================================================
+# # VECTOR DB SINGLETON
+# # =====================================================
+# def get_collection():
+#     global _client, _collection
+
+#     if _collection is None:
+#         _client = ChromaClient(Settings(anonymized_telemetry=False))
+#         _collection = _client.get_or_create_collection(
+#             name="reports",
+#             embedding_function=embedding_function
+#         )
+
+#     return _collection
+
+
+# # =====================================================
+# # TEXT CHUNKING
+# # =====================================================
+# def chunk_text(text: str, size: int = 800, overlap: int = 120):
+#     chunks = []
+#     start = 0
+
+#     while start < len(text):
+#         end = start + size
+#         chunk = text[start:end].strip()
+
+#         if chunk:
+#             chunks.append(chunk)
+
+#         start = end - overlap
+
+#     return chunks
+
+
+# # =====================================================
+# # STORE EMBEDDINGS
+# # =====================================================
+# def store_report_embeddings(report_id: str, content: str, metadata: dict):
+#     collection = get_collection()
+#     chunks = chunk_text(content)
+
+#     if not chunks:
+#         return
+
+#     for i, chunk in enumerate(chunks):
+#         collection.add(
+#             documents=[chunk],
+#             metadatas=[{
+#                 **metadata,
+#                 "report_id": report_id,
+#                 "chunk_index": i
+#             }],
+#             ids=[f"{report_id}_{i}"]
+#         )
+
+
+# # =====================================================
+# # SEMANTIC SEARCH
+# # =====================================================
+# def semantic_search(query: str, report_id: str, k: int = 5):
+#     try:
+#         collection = get_collection()
+
+#         results = collection.query(
+#             query_texts=[query],
+#             n_results=k
+#         )
+
+#         docs = []
+#         metas = []
+
+#         if results.get("documents"):
+#             for d, m in zip(results["documents"][0], results["metadatas"][0]):
+#                 if m.get("report_id") == report_id:
+#                     docs.append(d)
+#                     metas.append(m)
+
+#         return {"documents": docs, "metadatas": metas}
+
+#     except Exception as e:
+#         print("semantic search failed:", e)
+#         return {"documents": [], "metadatas": []}
+
+
+# # =====================================================
+# # HEALTH
+# # =====================================================
+# def vector_health():
+#     try:
+#         collection = get_collection()
+#         return {"vector_count": collection.count(), "status": "ok"}
+#     except Exception:
+#         return {"vector_count": 0, "status": "error"}
+
+
+
+
+
+
+
+
+
+
+
+
 from chromadb import Client as ChromaClient
 from chromadb.config import Settings
 from chromadb.utils import embedding_functions
@@ -282,7 +402,7 @@ from chromadb.utils import embedding_functions
 _client = None
 _collection = None
 
-# Default lightweight ONNX embedding model (~50MB)
+# Lightweight ONNX embedding (~50MB downloaded once)
 embedding_function = embedding_functions.DefaultEmbeddingFunction()
 
 
@@ -325,6 +445,9 @@ def chunk_text(text: str, size: int = 800, overlap: int = 120):
 # STORE EMBEDDINGS
 # =====================================================
 def store_report_embeddings(report_id: str, content: str, metadata: dict):
+    """
+    Splits report into chunks and stores vectors
+    """
     collection = get_collection()
     chunks = chunk_text(content)
 
@@ -344,35 +467,51 @@ def store_report_embeddings(report_id: str, content: str, metadata: dict):
 
 
 # =====================================================
-# SEMANTIC SEARCH
+# SEMANTIC SEARCH (CRITICAL FIX)
 # =====================================================
 def semantic_search(query: str, report_id: str, k: int = 5):
+    """
+    Returns report-specific documents + similarity distances
+    Used by RAG router to decide report vs web answer
+    """
+
     try:
         collection = get_collection()
 
         results = collection.query(
             query_texts=[query],
-            n_results=k
+            n_results=k,
+            include=["documents", "metadatas", "distances"]
         )
 
         docs = []
-        metas = []
+        distances = []
 
-        if results.get("documents"):
-            for d, m in zip(results["documents"][0], results["metadatas"][0]):
-                if m.get("report_id") == report_id:
-                    docs.append(d)
-                    metas.append(m)
+        if not results.get("documents"):
+            return {"documents": [], "distances": []}
 
-        return {"documents": docs, "metadatas": metas}
+        for doc, meta, dist in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+        ):
+            # Keep only this report's chunks
+            if meta.get("report_id") == report_id:
+                docs.append(doc)
+                distances.append(dist)
+
+        return {
+            "documents": docs,
+            "distances": [distances]  # keep chroma shape
+        }
 
     except Exception as e:
         print("semantic search failed:", e)
-        return {"documents": [], "metadatas": []}
+        return {"documents": [], "distances": []}
 
 
 # =====================================================
-# HEALTH
+# HEALTH CHECK
 # =====================================================
 def vector_health():
     try:
