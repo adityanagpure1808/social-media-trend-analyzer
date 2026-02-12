@@ -48,38 +48,117 @@
 
 
 
+# import os
+# import psycopg2
+# from psycopg2.extras import RealDictCursor
+
+# DATABASE_URL = os.getenv("DATABASE_URL")
+
+# _conn = None
+
+# def get_db():
+#     """
+#     Returns reusable Supabase Postgres connection.
+#     Automatically reconnects if Render sleeps.
+#     """
+#     global _conn
+
+#     if DATABASE_URL is None:
+#         raise RuntimeError("DATABASE_URL not set in environment variables")
+
+#     try:
+#         if _conn is None or _conn.closed != 0:
+#             _conn = psycopg2.connect(
+#                 DATABASE_URL,
+#                 cursor_factory=RealDictCursor,
+#                 sslmode="require"
+#             )
+#         return _conn
+
+#     except Exception as e:
+#         print("Reconnecting to database:", e)
+#         _conn = psycopg2.connect(
+#             DATABASE_URL,
+#             cursor_factory=RealDictCursor,
+#             sslmode="require"
+#         )
+#         return _conn
+
+
+
+
+
+# import os
+# import psycopg2
+# from psycopg2.extras import RealDictCursor
+
+# DATABASE_URL = os.getenv("DATABASE_URL")
+
+# if not DATABASE_URL:
+#     raise RuntimeError("DATABASE_URL not set")
+
+# _conn = None
+
+# def get_db():
+#     global _conn
+
+#     try:
+#         if _conn is None or _conn.closed != 0:
+#             _conn = psycopg2.connect(
+#                 DATABASE_URL,
+#                 cursor_factory=RealDictCursor,
+#                 sslmode="require"
+#             )
+#         return _conn
+
+#     except Exception:
+#         _conn = psycopg2.connect(
+#             DATABASE_URL,
+#             cursor_factory=RealDictCursor,
+#             sslmode="require"
+#         )
+#         return _conn
+
+
+
+
 import os
-import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 from psycopg2.extras import RealDictCursor
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-_conn = None
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL not set")
+
+
+# create a connection pool (1–5 connections)
+pool = SimpleConnectionPool(
+    minconn=1,
+    maxconn=5,
+    dsn=DATABASE_URL,
+    sslmode="require"
+)
+
 
 def get_db():
     """
-    Returns reusable Supabase Postgres connection.
-    Automatically reconnects if Render sleeps.
+    Get a DB connection from pool
     """
-    global _conn
+    conn = pool.getconn()
+    return conn
 
-    if DATABASE_URL is None:
-        raise RuntimeError("DATABASE_URL not set in environment variables")
 
-    try:
-        if _conn is None or _conn.closed != 0:
-            _conn = psycopg2.connect(
-                DATABASE_URL,
-                cursor_factory=RealDictCursor,
-                sslmode="require"
-            )
-        return _conn
+def get_cursor(conn):
+    """
+    Always use RealDictCursor so row["column"] works
+    """
+    return conn.cursor(cursor_factory=RealDictCursor)
 
-    except Exception as e:
-        print("Reconnecting to database:", e)
-        _conn = psycopg2.connect(
-            DATABASE_URL,
-            cursor_factory=RealDictCursor,
-            sslmode="require"
-        )
-        return _conn
+
+def release_db(conn):
+    """
+    Return connection back to pool
+    """
+    if conn:
+        pool.putconn(conn)
