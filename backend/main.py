@@ -463,6 +463,7 @@
 
 
 
+from routes.report import router as report_router
 
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -693,6 +694,12 @@ def health_check():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
 
+# # routers LAST
+# app.include_router(chat_router)
+# app.include_router(export_router)
+
+
 # routers LAST
 app.include_router(chat_router)
 app.include_router(export_router)
+app.include_router(report_router)
