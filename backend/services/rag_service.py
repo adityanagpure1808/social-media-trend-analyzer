@@ -332,46 +332,203 @@
 
 
 
+# from services.embedding_service import semantic_search
+# from services.tavily_client import get_platform_trends
+# import re
+
+
+# # ============================================================
+# # DETERMINE SOURCE (RELEVANCE BASED — FIXED)
+# # ============================================================
+# def _has_report_context(result: dict) -> bool:
+#     """
+#     True only if retrieved vectors are ACTUALLY relevant.
+
+#     Chroma distance meaning (MiniLM):
+#         0.0 - 0.30  very related
+#         0.30 - 0.45 related
+#         0.45 - 0.70 weak noise
+#         >0.70 unrelated
+#     """
+
+#     documents = result.get("documents", [])
+#     distances = result.get("distances", [])
+
+#     # no docs → definitely not report
+#     if not documents:
+#         print("🧠 No vectors → WEB")
+#         return False
+
+#     # safety fallback (first embed run / cold start)
+#     if not distances or not distances[0]:
+#         print("🧠 Distances unavailable → assume REPORT")
+#         return True
+
+#     best_distance = min(distances[0])
+#     print("🧠 best vector distance:", best_distance)
+
+#     return best_distance < 0.45
+
+
+# # ============================================================
+# # EXTRACT ANSWER FROM REPORT (NO LLM)
+# # ============================================================
+# def _extract_answer(question: str, documents: list[str]) -> str:
+
+#     if not documents:
+#         return "No relevant information found in the report."
+
+#     text = "\n".join(documents)
+#     lower = text.lower()
+#     q = question.lower()
+
+#     # ---------- PLATFORM ----------
+#     if "platform" in q:
+#         match = re.search(r"platform[:\-\s]+([a-zA-Z0-9 ]+)", lower)
+#         if match:
+#             return match.group(1).strip().title()
+
+#     # ---------- TOPICS ----------
+#     if "trend" in q or "topic" in q:
+#         topics = []
+#         for line in text.split("\n"):
+#             if ":" in line:
+#                 left = line.split(":")[0].strip()
+#                 if 3 < len(left) < 50:
+#                     topics.append(left)
+#         if topics:
+#             return ", ".join(topics[:5])
+
+#     # ---------- SUMMARY ----------
+#     if "summary" in q:
+#         for line in text.split("\n"):
+#             if len(line.split()) > 8:
+#                 return line.strip()
+
+#     # ---------- DEFAULT ----------
+#     sentences = re.split(r'[.\n]', text)
+#     sentences = [s.strip() for s in sentences if len(s.split()) > 6]
+#     return sentences[0] if sentences else documents[0][:200]
+
+
+# # ============================================================
+# # WEB FALLBACK (CONTROLLED)
+# # ============================================================
+# def _web_fallback(question: str) -> str:
+
+#     search_query = f"{question}"
+
+#     tavily = get_platform_trends(search_query)
+
+#     if tavily.get("success") and tavily.get("data"):
+#         return tavily["data"][0].get("content", "")[:300]
+
+#     return "I couldn't find reliable information online."
+
+
+# # ============================================================
+# # MAIN HYBRID RAG
+# # ============================================================
+# def answer_question_about_report(report_id: str, question: str, return_docs: bool = False):
+
+#     try:
+#         # STEP 1 — Retrieve
+#         result = semantic_search(query=question, report_id=report_id, k=5)
+#         documents = result.get("documents", [])
+
+#         print("🔍 documents retrieved:", len(documents))
+
+#         # STEP 2 — ROUTE (relevance based)
+#         if _has_report_context(result):
+#             answer = _extract_answer(question, documents)
+#             source = "report"
+#             print("📊 Source: REPORT")
+
+#         else:
+#             answer = _web_fallback(question)
+#             source = "web"
+#             print("🌐 Source: WEB")
+
+#         if return_docs:
+#             return answer, documents, source
+#         return answer
+
+#     except Exception as e:
+#         print("RAG ERROR:", e)
+
+#         # safe fallback so chat never crashes
+#         answer = _web_fallback(question)
+#         source = "web"
+
+#         if return_docs:
+#             return answer, [], source
+#         return answer
+
+
+
+
 from services.embedding_service import semantic_search
 from services.tavily_client import get_platform_trends
 import re
 
 
 # ============================================================
-# DETERMINE SOURCE (RELEVANCE BASED — FIXED)
+# HYBRID RELEVANCE DETECTOR (CORE FIX)
 # ============================================================
-def _has_report_context(result: dict) -> bool:
+def _has_report_context(result: dict, question: str) -> bool:
     """
-    True only if retrieved vectors are ACTUALLY relevant.
+    Decide whether the question belongs to the report.
 
-    Chroma distance meaning (MiniLM):
-        0.0 - 0.30  very related
-        0.30 - 0.45 related
-        0.45 - 0.70 weak noise
-        >0.70 unrelated
+    Works even when Chroma doesn't return distances (common in ONNX mode).
+    Uses:
+        1) semantic similarity (if available)
+        2) keyword overlap (reliable fallback)
     """
 
     documents = result.get("documents", [])
     distances = result.get("distances", [])
 
-    # no docs → definitely not report
     if not documents:
         print("🧠 No vectors → WEB")
         return False
 
-    # safety fallback (first embed run / cold start)
-    if not distances or not distances[0]:
-        print("🧠 Distances unavailable → assume REPORT")
-        return True
+    # -------------------------------------------------
+    # 1️⃣ Semantic similarity (soft rule)
+    # -------------------------------------------------
+    semantic_match = False
 
-    best_distance = min(distances[0])
-    print("🧠 best vector distance:", best_distance)
+    if distances and len(distances) > 0 and distances[0]:
+        best_distance = min(distances[0])
+        print("🧠 best vector distance:", best_distance)
 
-    return best_distance < 0.45
+        # relaxed threshold for short generated reports
+        if best_distance < 0.75:
+            semantic_match = True
+    else:
+        print("🧠 Distances missing → using keyword routing")
+
+    # -------------------------------------------------
+    # 2️⃣ Keyword overlap (strong rule)
+    # -------------------------------------------------
+    q_words = set(question.lower().split())
+    keyword_hits = 0
+
+    for doc in documents:
+        d_words = set(doc.lower().split())
+        keyword_hits += len(q_words & d_words)
+
+    keyword_match = keyword_hits >= 2
+
+    print("🧠 semantic:", semantic_match, "| keyword:", keyword_match)
+
+    # -------------------------------------------------
+    # FINAL DECISION
+    # -------------------------------------------------
+    return semantic_match or keyword_match
 
 
 # ============================================================
-# EXTRACT ANSWER FROM REPORT (NO LLM)
+# EXTRACT ANSWER FROM REPORT
 # ============================================================
 def _extract_answer(question: str, documents: list[str]) -> str:
 
@@ -394,7 +551,7 @@ def _extract_answer(question: str, documents: list[str]) -> str:
         for line in text.split("\n"):
             if ":" in line:
                 left = line.split(":")[0].strip()
-                if 3 < len(left) < 50:
+                if 3 < len(left) < 60:
                     topics.append(left)
         if topics:
             return ", ".join(topics[:5])
@@ -405,49 +562,47 @@ def _extract_answer(question: str, documents: list[str]) -> str:
             if len(line.split()) > 8:
                 return line.strip()
 
-    # ---------- DEFAULT ----------
+    # ---------- DEFAULT BEST SENTENCE ----------
     sentences = re.split(r'[.\n]', text)
     sentences = [s.strip() for s in sentences if len(s.split()) > 6]
+
     return sentences[0] if sentences else documents[0][:200]
 
 
 # ============================================================
-# WEB FALLBACK (CONTROLLED)
+# WEB FALLBACK (TAVILY)
 # ============================================================
 def _web_fallback(question: str) -> str:
 
-    search_query = f"{question}"
-
-    tavily = get_platform_trends(search_query)
+    tavily = get_platform_trends(question)
 
     if tavily.get("success") and tavily.get("data"):
-        return tavily["data"][0].get("content", "")[:300]
+        return tavily["data"][0].get("content", "")[:350]
 
     return "I couldn't find reliable information online."
 
 
 # ============================================================
-# MAIN HYBRID RAG
+# MAIN HYBRID RAG ENTRYPOINT
 # ============================================================
 def answer_question_about_report(report_id: str, question: str, return_docs: bool = False):
 
     try:
-        # STEP 1 — Retrieve
+        # STEP 1 — Retrieve relevant report chunks
         result = semantic_search(query=question, report_id=report_id, k=5)
         documents = result.get("documents", [])
 
         print("🔍 documents retrieved:", len(documents))
 
-        # STEP 2 — ROUTE (relevance based)
-        if _has_report_context(result):
+        # STEP 2 — Intelligent routing
+        if _has_report_context(result, question):
+            print("📊 Source: REPORT")
             answer = _extract_answer(question, documents)
             source = "report"
-            print("📊 Source: REPORT")
-
         else:
+            print("🌐 Source: WEB")
             answer = _web_fallback(question)
             source = "web"
-            print("🌐 Source: WEB")
 
         if return_docs:
             return answer, documents, source
@@ -456,7 +611,7 @@ def answer_question_about_report(report_id: str, question: str, return_docs: boo
     except Exception as e:
         print("RAG ERROR:", e)
 
-        # safe fallback so chat never crashes
+        # never break chat
         answer = _web_fallback(question)
         source = "web"
 
