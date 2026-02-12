@@ -227,6 +227,157 @@
 
 
 
+# import json
+# import traceback
+# from datetime import datetime
+
+# from database.db import get_db
+# from services.tavily_client import get_platform_trends
+# from services.embedding_service import store_report_embeddings
+
+
+# # =====================================================
+# # HELPERS
+# # =====================================================
+# def update_progress(report_id: str, status: str, progress: int, error: str | None = None):
+#     conn = get_db()
+#     cursor = conn.cursor()
+
+#     cursor.execute("""
+#         UPDATE reports
+#         SET status=?, progress=?, error_message=?, updated_at=?
+#         WHERE id=?
+#     """, (
+#         status,
+#         progress,
+#         error,
+#         datetime.utcnow().isoformat(),
+#         report_id,
+#     ))
+
+#     conn.commit()
+#     conn.close()
+
+
+# def normalize_platform(platform: str | None) -> str:
+#     return platform.strip().lower() if platform else "general"
+
+
+# def generate_hashtags(title: str) -> list[str]:
+#     if not title:
+#         return []
+#     words = title.lower().replace("-", " ").split()
+#     return [f"#{w}" for w in words if len(w) > 3][:5]
+
+
+# # =====================================================
+# # NORMALIZE TAVILY DATA
+# # =====================================================
+# def normalize_tavily_report(results: list, platform: str) -> dict:
+#     return {
+#         "title": f"{platform.capitalize()} Trend Report",
+#         "summary": f"Key trending discussions happening on {platform}.",
+#         "topics": [
+#             {
+#                 "name": item.get("title", "Unknown Topic"),
+#                 "description": item.get("content", "")[:500],
+#                 "hashtags": generate_hashtags(item.get("title", "")),
+#             }
+#             for item in results[:5]
+#         ],
+#     }
+
+
+# # =====================================================
+# # MAIN REPORT JOB
+# # =====================================================
+# def generate_report(report_id: str, platform: str, query: str | None = None):
+
+#     try:
+#         # ---------------------------
+#         # STEP 1: START
+#         # ---------------------------
+#         update_progress(report_id, "running", 10)
+
+#         platform = normalize_platform(platform)
+
+#         search_query = (
+#             f"trending topics on {platform}"
+#             if not query
+#             else f"{query} trending on {platform}"
+#         )
+
+#         # ---------------------------
+#         # STEP 2: TAVILY SEARCH
+#         # ---------------------------
+#         update_progress(report_id, "running", 30)
+
+#         tavily = get_platform_trends(search_query)
+
+#         if not tavily.get("success"):
+#             raise RuntimeError("Tavily temporary failure")
+
+#         # ---------------------------
+#         # STEP 3: PROCESS DATA
+#         # ---------------------------
+#         update_progress(report_id, "running", 60)
+
+#         normalized = normalize_tavily_report(tavily["data"], platform)
+
+#         conn = get_db()
+#         cursor = conn.cursor()
+
+#         cursor.execute("""
+#             UPDATE reports
+#             SET title=?, summary=?, trending_topics=?, raw_report=?, progress=?, updated_at=?
+#             WHERE id=?
+#         """, (
+#             normalized["title"],
+#             normalized["summary"],
+#             json.dumps(normalized["topics"]),
+#             json.dumps(tavily["data"]),
+#             80,
+#             datetime.utcnow().isoformat(),
+#             report_id,
+#         ))
+
+#         conn.commit()
+#         conn.close()
+
+#         # ---------------------------
+#         # STEP 4: COMPLETE REPORT
+#         # ---------------------------
+#         update_progress(report_id, "completed", 90)
+
+#         # ---------------------------
+#         # STEP 5: EMBEDDINGS (NON-BLOCKING SAFE)
+#         # ---------------------------
+#         try:
+#             text = normalized["summary"] + "\n\n" + "\n".join(
+#                 f"{t['name']}: {t['description']}"
+#                 for t in normalized["topics"]
+#             )
+
+#             store_report_embeddings(
+#                 report_id=report_id,
+#                 content=text,
+#                 metadata={"platform": platform},
+#             )
+
+#             update_progress(report_id, "completed", 100)
+
+#         except Exception as e:
+#             print("Embedding skipped:", e)
+#             update_progress(report_id, "completed", 100)
+
+#     except Exception as e:
+#         traceback.print_exc()
+#         update_progress(report_id, "failed", 0, str(e))
+
+
+
+
+
 import json
 import traceback
 from datetime import datetime
@@ -245,13 +396,13 @@ def update_progress(report_id: str, status: str, progress: int, error: str | Non
 
     cursor.execute("""
         UPDATE reports
-        SET status=?, progress=?, error_message=?, updated_at=?
-        WHERE id=?
+        SET status=%s, progress=%s, error_message=%s, updated_at=%s
+        WHERE id=%s
     """, (
         status,
         progress,
         error,
-        datetime.utcnow().isoformat(),
+        datetime.utcnow(),
         report_id,
     ))
 
@@ -294,9 +445,6 @@ def normalize_tavily_report(results: list, platform: str) -> dict:
 def generate_report(report_id: str, platform: str, query: str | None = None):
 
     try:
-        # ---------------------------
-        # STEP 1: START
-        # ---------------------------
         update_progress(report_id, "running", 10)
 
         platform = normalize_platform(platform)
@@ -307,9 +455,6 @@ def generate_report(report_id: str, platform: str, query: str | None = None):
             else f"{query} trending on {platform}"
         )
 
-        # ---------------------------
-        # STEP 2: TAVILY SEARCH
-        # ---------------------------
         update_progress(report_id, "running", 30)
 
         tavily = get_platform_trends(search_query)
@@ -317,9 +462,6 @@ def generate_report(report_id: str, platform: str, query: str | None = None):
         if not tavily.get("success"):
             raise RuntimeError("Tavily temporary failure")
 
-        # ---------------------------
-        # STEP 3: PROCESS DATA
-        # ---------------------------
         update_progress(report_id, "running", 60)
 
         normalized = normalize_tavily_report(tavily["data"], platform)
@@ -329,29 +471,23 @@ def generate_report(report_id: str, platform: str, query: str | None = None):
 
         cursor.execute("""
             UPDATE reports
-            SET title=?, summary=?, trending_topics=?, raw_report=?, progress=?, updated_at=?
-            WHERE id=?
+            SET title=%s, summary=%s, trending_topics=%s, raw_report=%s, progress=%s, updated_at=%s
+            WHERE id=%s
         """, (
             normalized["title"],
             normalized["summary"],
             json.dumps(normalized["topics"]),
             json.dumps(tavily["data"]),
             80,
-            datetime.utcnow().isoformat(),
+            datetime.utcnow(),
             report_id,
         ))
 
         conn.commit()
         conn.close()
 
-        # ---------------------------
-        # STEP 4: COMPLETE REPORT
-        # ---------------------------
         update_progress(report_id, "completed", 90)
 
-        # ---------------------------
-        # STEP 5: EMBEDDINGS (NON-BLOCKING SAFE)
-        # ---------------------------
         try:
             text = normalized["summary"] + "\n\n" + "\n".join(
                 f"{t['name']}: {t['description']}"
